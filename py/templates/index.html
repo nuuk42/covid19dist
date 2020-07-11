@@ -1,0 +1,25 @@
+<html>
+<head>
+<title>Nikita's Covid-19 Statistic</title>
+</head>
+<body>
+<h1>COVID19 - Country: {{ country }} </h1>
+<form action="/" method="GET" name="XX">
+  <p>
+    <label>
+      Country
+      <input name="country" type="search" list="Countries" value='{{ country }}'>
+      <datalist id="Countries">
+        {% for country in countries %}
+        <option value="{{country}}"> 
+        {% endfor %}
+      </datalist> 
+    </label>
+    <button type="submit">search!</button>
+    <label>Time span (days) <input name="timespan" type="number" value="{{ timespan }}">
+    </label>    
+  </p>
+</form>
+<img src="{{ image }}"/> 
+</body>
+</html>

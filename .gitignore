@@ -1,0 +1,4 @@
+# no vim temp-files
+*~
+# no Python cash
+__pycache__/

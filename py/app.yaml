@@ -1,0 +1,20 @@
+---
+# runtime: python37
+runtime: python37
+    
+# env: flex
+    
+entrypoint: gunicorn -b :$PORT covid19_main:application
+
+env_variables:
+  BUCKET_NAME: "example-gcs-bucket"
+  LOG_CONFIG: >
+            { "Level"   :{ "Default" : "INFO" 
+                          ,"Main"    : "INFO"
+                          ,"Modules" : { "service_utl":"INFO" 
+                                       }  
+                         }       
+             ,"Format":"%(levelname)8s %(lineno)4.4d %(module)12s %(threadName)10s %(name)s.%(funcName)s %(message)s"       
+            }          
+...         
+

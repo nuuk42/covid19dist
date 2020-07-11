@@ -1,0 +1,50 @@
+##
+VCAP_SERVICES='{
+ }'
+export VCAP_SERVICES 
+
+
+VCAP_APPLICATION='{
+  "application_id": "6e61533a-0776-4c82-a2a4-e87c0e8cacfc",
+  "application_name": "covid19",
+  "application_uris": [
+   "covid19-balanced-lizard.cfapps.io"
+  ],
+  "application_version": "98f684d7-cf46-4746-9afa-9a77a53655fa",
+  "cf_api": "https://api.run.pivotal.io",
+  "limits": {
+   "disk": 600,
+   "fds": 16384,
+   "mem": 128
+  },
+  "name": "covid19",
+  "organization_id": "cbf79a84-ca9c-44b6-959a-42e4f3e7d6a7",
+  "organization_name": "kl1.org",
+  "process_id": "6e61533a-0776-4c82-a2a4-e87c0e8cacfc",
+  "process_type": "web",
+  "space_id": "c9bd230e-352a-4b43-9593-2f68fd5fe061",
+  "space_name": "development",
+  "uris": [
+   "covid19-balanced-lizard.cfapps.io"
+  ],
+  "users": null,
+  "version": "98f684d7-cf46-4746-9afa-9a77a53655fa"
+ }'
+export VCAP_APPLICATION
+
+
+LOG_CONFIG='{
+ "Level":{
+    "Default":"INFO", 
+    "Main":"DEBUG",
+    "Modules":{ 
+                 "root":"DEBUG"
+                ,"db_oracle.api":"DEBUG"
+                ,"kool.jsonencoder":"DEBUG"
+              } 
+        }       
+ ,"Format":"%(levelname)8s %(lineno)4.4d %(module)12s %(threadName)10s %(name)s.%(funcName)s %(message)s"       
+}'
+export LOG_CONFIG
+
+
