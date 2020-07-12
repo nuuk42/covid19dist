@@ -43,6 +43,7 @@ help:
 	@echo "run_flask    - run local using flak's internal WEB server"
 	@echo "run_gunicorn - run local using gunicorn WEB server"
 	@echo "env          - show local environment"
+	@echo "runtime      - build a new python runtime"
 	
 # ----------------------------------------------------------------------------
 .PHONY: clean
@@ -59,12 +60,12 @@ requirements.txt:
 
 # run local using the internal flask WEB server
 .PHONY: run_flask
-run_flask: 
+run_flask: runtime
 	$(ENV_DEV); $(ENV_CLOUD); cd py;python covid19_main.py	
 
 # run local using gunicorn
 .PHONY: run_gunicorn
-run_gunicorn:
+run_gunicorn: runtime
 	$(ENV_DEV); $(ENV_CLOUD); cd py;gunicorn -b 0.0.0.0:9099 --workers 5 --max-requests 1000 covid19_main
 
 # show local environment
@@ -72,8 +73,21 @@ run_gunicorn:
 env:
 	cat $(ENV_CLOUD)	
 	
-# -----------------------------------------------------------------
-# Running in the Cloud
+
+# build the python runtime
+runtime:
+	echo "building new python virtual env..."
+	python3 -m venv runtime --prompt covid19
+	echo "Done!"
+	echo "updating pip..."
+	$(ENV_DEV); pip install --upgrade pip
+	echo "Done!"
+	echo "installing dependencies..."
+	$(ENV_DEV); pip install -r ./py/requirements.txt
+
+# ==================================================
+# = Pivotal CLOUD
+# ==================================================
 
 .PHONY: cf_push
 cf_push: clean requirements.txt
