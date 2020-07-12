@@ -1,5 +1,7 @@
 # no vim temp-files
 *~
+# no swap-files
+*.swp
 # no Python cash
 __pycache__/
 # no Python virtual env
