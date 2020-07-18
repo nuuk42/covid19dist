@@ -44,7 +44,7 @@ help:
 	@echo "run_gunicorn - run local using gunicorn WEB server"
 	@echo "env          - show local environment"
 	@echo "runtime      - build a new python runtime"
-	@ecoh "clean        - remove python runtime an all *.pyc files"
+	@echo "clean        - remove python runtime an all *.pyc files"
 	
 # ----------------------------------------------------------------------------
 .PHONY: clean
