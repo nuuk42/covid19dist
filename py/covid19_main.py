@@ -1,12 +1,11 @@
 # import basics
 import sys, os, logging, atexit
-import fnmatch
 import io
 import base64
 from datetime import datetime
 
 # import WEB interface
-from flask import Flask, render_template, current_app, url_for, g, request
+from flask import Flask, render_template, current_app, url_for, request
 
 import service_utl
 from kool import get_json_attribute
@@ -32,7 +31,7 @@ http_log = None
 # create the app
 application = Flask(__name__)
 
-# -----------------------
+# ---------------------------------------------------------------------------
 def to_lines(f):
     """ Convert the stream from the file 'f' into an enumarable object """
     line = f.readline()
@@ -40,18 +39,35 @@ def to_lines(f):
         yield line.decode('ascii')
         line = f.readline()
 
-
 # ---------------------------------------------------------------------------
-#
 def get_data(country, timespan_days):
+    """ Load data into a dict
+
+    The data-source is a CSV file with the structure:
+
+        Date,Country/Region,Province/State,Lat,Long,Confirmed,Recovered,Deaths
+
+    Example:
+        2020-05-07,Germany,,51.0,9.0,169430,141700,7392
+
+    The function returns two objects:
+    1. a dict containing the following lists:
+       date       - list of date values; for the X-axes
+       registered - list of integer values; accumulated registered cases 
+       ill        - list of integer values; number of ill persons for each day
+       new_reg    - list of integer values; number of newly registed cases for each day
+       dead       - list of integer values; accumulated number of death
+       recovered  - list of integer values; accumulated number of recovered persons 
+    2. the set of country names that we can provid data for  
+    """
     log.debug('> country=%s timespan_days=%d' % (country,timespan_days) )
     url = 'https://datahub.io/core/covid-19/r/time-series-19-covid-combined.csv'
     # cal start-date
     now = datetime.now()
     start_date = np.datetime64('%4d-%02d-%02d' %(now.year,now.month,now.day) ) - timespan_days
 
-    # resulting lists
-    country_list, list_date, list_registered, list_ill = [ [],[],[],[] ]
+    # create the resulting lists
+    country_list, list_date, list_registered, list_ill, list_dead, list_recovered = [ [],[],[],[],[], [] ]
 
     # open data source
     with r.urlopen(r.Request(url, headers={'Accept':'*/*','User-Agent':'curl/7.60.0'})) as http_response:
@@ -60,6 +76,7 @@ def get_data(country, timespan_days):
 
         # read only value after the start date
         # selected_values is an nested array: [ [], [], [], .....]
+        # each array is one row from the source file
         selected_values = filter(lambda l: np.datetime64(l[0])>=start_date , rd )
 
         for row in selected_values:
@@ -77,22 +94,30 @@ def get_data(country, timespan_days):
                 row_ill  = row_registerd - row_recoverd - row_dead
 
                 # for some countries we get multible values for the same day. 
+                # search the current date in out list of dates.
                 if row_date in list_date:
-                    # get the index
+                    # Found it; get the index
                     ix = list_date.index(row_date)
                     # sum this up
                     list_ill[ix] += row_ill  
                     list_registered[ix] += row_registerd
+                    list_dead[ix] += row_dead
+                    list_recovered[ix] += row_recoverd
                 else:
                     # add data for one day
                     list_date.append( row_date )
                     list_ill.append( row_ill )
                     list_registered.append( row_registerd )
+                    list_dead.append( row_dead )
+                    list_recovered.append( row_recoverd )
 
     # calculate the newly registered cases per day. Note: this list has one value less then the others...
-    list_new_reg = [ list_registered[ix]-list_registered[ix-1] for ix in range(1,len(list_registered)) ]
+    list_new_reg_raw = [ list_registered[ix]-list_registered[ix-1] for ix in range(1,len(list_registered)) ]
+    # set negativ values to 0 
+    list_new_reg = [ list_new_reg_raw[ix] if list_new_reg_raw[ix]>=0 else 0 for ix in range(0,len(list_new_reg_raw)) ] 
+
     # create the data house....
-    data = { 'date':list_date[1:], 'registered':list_registered[1:], 'ill':list_ill[1:], 'new_reg':list_new_reg }
+    data = { 'date':list_date[1:], 'registered':list_registered[1:], 'ill':list_ill[1:], 'new_reg':list_new_reg, 'dead':list_dead[1:], 'recovered': list_recovered[1:] }
 
     # remove duplicated values from the list of countries and sort the result
     country_set = sorted( set(country_list) )
@@ -100,7 +125,76 @@ def get_data(country, timespan_days):
     log.debug('< number of data points: %d number of countries: %d' % (len(data['date']), len(country_set) )  )
     return data, country_set
 
-def create_image(data):
+def create_figure_r(data):
+    """ Create image for data 
+    
+    The function will return the firgure object with 1 plot(s):
+    - reproduction rate
+    """
+    log.debug('>')
+
+    # Create Data. reproduction rate is cal. like this
+    # newly_infected(today) / newly_infected(today-4d)
+
+    reprod_data = {}
+    raw_data = [ data['new_reg'][ix] / data['new_reg'][ix-4] if data['new_reg'][ix-4]>0 else 1 
+            for ix in range(4,len(data['date'])) ] 
+    # limit to range 0..10
+    reprod_data['r'] = [ raw_data[ix] if raw_data[ix] > 0 else 0 for ix in range(0,len(raw_data)) ]
+    reprod_data['date'] = data['date'][4:] 
+
+    # --------------
+    days = mdates.DayLocator()  # every day:
+    day_fmt = mdates.DateFormatter('%m.%d')
+
+    # -----------------------
+    # select format
+    fig,ax=plt.subplots(figsize=(12,8))
+    # format the ticks
+    ax.xaxis.set_major_locator(days)
+    ax.xaxis.set_major_formatter(day_fmt)
+
+    # create the 3 different plots
+    ax.plot('date','r',data=reprod_data,label='Reproduction rate')
+
+    # rotates and right aligns the x labels, and moves the bottom of the axes up to make room for them
+    fig.autofmt_xdate()
+    ax.legend(loc='upper center', shadow=True, fontsize='x-large')
+    ax.grid(True)
+    # return firgure
+    log.debug('<')
+    return fig
+
+def create_figure_focus(data):
+    """ Create image for data 
+    
+    The function will return the firgure object with 1 plot(s):
+    - number of newly registered cases/day
+    """
+    log.debug('>')
+    # --------------
+    days = mdates.DayLocator()  # every day:
+    day_fmt = mdates.DateFormatter('%m.%d')
+
+    # -----------------------
+    # select format
+    fig,ax=plt.subplots(figsize=(12,8))
+    # format the ticks
+    ax.xaxis.set_major_locator(days)
+    ax.xaxis.set_major_formatter(day_fmt)
+
+    # create the 3 different plots
+    ax.plot('date','new_reg',data=data,label='newly infected per day')
+
+    # rotates and right aligns the x labels, and moves the bottom of the axes up to make room for them
+    fig.autofmt_xdate()
+    ax.legend(loc='upper center', shadow=True, fontsize='x-large')
+    ax.grid(True)
+    # return firgure
+    log.debug('<')
+    return fig
+
+def create_figure_total(data):
     """ Create image for data 
     
     The function will return the firgure object with 3 plots:
@@ -110,13 +204,9 @@ def create_image(data):
     """
     log.debug('>')
     # --------------
-    years = mdates.YearLocator()   # every year
-    months = mdates.MonthLocator()  # every month
     days = mdates.DayLocator()  # every day:
-
-    years_fmt = mdates.DateFormatter('%Y')
-    month_fmt = mdates.DateFormatter('%m')
     day_fmt = mdates.DateFormatter('%m.%d')
+
     # -----------------------
     # select format
     fig,ax=plt.subplots(figsize=(12,8))
@@ -166,8 +256,17 @@ def index():
 
     # check, if data found for country...
     if len(data['date']) > 0:
-        figure = create_image(data)
-        return render_template('index.html',image=figure_2_png(figure), country=country,countries=country_set,timespan=timespan_days)
+        # create the figures
+        figure_total = create_figure_total(data)
+        figure_focus = create_figure_focus(data)
+        figure_r     = create_figure_r(data)
+        # render the "main" template including all figures
+        return render_template('index.html'
+                ,image_total=figure_2_png(figure_total)
+                ,image_focus=figure_2_png(figure_focus)
+                ,image_r    =figure_2_png(figure_r)
+                ,country=country,countries=country_set,timespan=timespan_days)
+    # country not found; render a different template    
     return render_template('unknown_country.html',country=country,countries=country_set,timespan=timespan_days)
 
 # ---------------------------------------------------------------------------
@@ -177,7 +276,7 @@ def index():
 
 # ---------------------------------------------------------------------------
 def before_request():
-    log.debug('> %s' %g)
+    log.debug('> ')
     log.debug('<')
 
 # ---------------------------------------------------------------------------
@@ -228,7 +327,6 @@ def init():
 
     # get a new stream-handler sending log-data to stdout for log-level <= WARNING 
     stdout_handler = logging.StreamHandler(sys.stdout)
-    ## stdout_handler = logging.StreamHandler(sys.stderr)
     stdout_handler.formatter = logging.Formatter(fmt=log_config.Format)
     stdout_handler.addFilter( lambda record: record.levelno <= logging.WARNING )
     root_log.addHandler(stdout_handler)
@@ -248,19 +346,7 @@ def init():
     # we register a handler here that will close the connection pool
     atexit.register(atexit_handler)
 
-    # log the path
-    source_location = os.path.dirname(os.path.abspath(__file__))
-    print("Source location: %s" % source_location)  # /a/b/c/d/e
-
-
-    for root, dir, files in os.walk(source_location):
-        print( root )
-        for items in fnmatch.filter(files, "*"):
-            print ("..." + items)
-
-
     log.debug('done with init')
-
 
 # ---------------------------------------------------------------------------
 init()
