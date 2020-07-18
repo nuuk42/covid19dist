@@ -49,6 +49,7 @@ help:
 .PHONY: clean
 clean:
 	@-cd py; find -name *.pyc | xargs rm
+	@-rm -Rf runtime
 
 # Build the file py/requirements.txt
 .PHONY: requirements.txt
